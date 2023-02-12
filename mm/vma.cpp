@@ -50,7 +50,7 @@ void VMA::install_default_kernel_mapping()
 			
 typedef uint16_t table_idx_t;
 
-static inline void va_table_indicies(virt_addr_t va, table_idx_t& pm, table_idx_t& pdp, table_idx_t& pd, table_idx_t& pt)
+static inline void va_table_indices(virt_addr_t va, table_idx_t& pm, table_idx_t& pdp, table_idx_t& pd, table_idx_t& pt)
 {
 	pm = BITS(va, 39, 47);
 	pdp = BITS(va, 30, 38);
@@ -58,8 +58,8 @@ static inline void va_table_indicies(virt_addr_t va, table_idx_t& pm, table_idx_
 	pt = BITS(va, 12, 20);
 }
 
-struct MMUTableEntry {
-	enum MMUTableEntryFlags {
+struct GenericPageTableEntry {
+	enum PageTableEntryFlags {
 		// PTE
 		PRESENT		= 0,
 		WRITABLE	= 1,
@@ -94,8 +94,8 @@ struct MMUTableEntry {
 		bits |= flags & 0xfff;
 	}
 	
-	inline bool get_flag(MMUTableEntryFlags idx) const { return !!(flags() & (1 << idx)); }
-	inline void set_flag(MMUTableEntryFlags idx, bool v) { 
+	inline bool get_flag(PageTableEntryFlags idx) const { return !!(flags() & (1 << idx)); }
+	inline void set_flag(PageTableEntryFlags idx, bool v) {
 		if (!v) {
 			flags(flags() & ~(1 << (uint16_t)idx)); 
 		} else {
@@ -116,22 +116,22 @@ struct MMUTableEntry {
 	inline void huge(bool v) { set_flag(HUGE, v); }
 } __packed;
 
-struct PML4TableEntry : MMUTableEntry {
+struct PML4TableEntry : GenericPageTableEntry {
 } __packed;
 
-struct PDPTableEntry : MMUTableEntry {
+struct PDPTableEntry : GenericPageTableEntry {
 } __packed;
 
-struct PDTableEntry : MMUTableEntry {
+struct PDTableEntry : GenericPageTableEntry {
 } __packed;
 
-struct PTTableEntry : MMUTableEntry {
+struct PTTableEntry : GenericPageTableEntry {
 } __packed;
 
 void VMA::insert_mapping(virt_addr_t va, phys_addr_t pa, MappingFlags::MappingFlags flags)
 {
 	table_idx_t pml4_idx, pdp_idx, pd_idx, pt_idx;
-	va_table_indicies(va, pml4_idx, pdp_idx, pd_idx, pt_idx);
+	va_table_indices(va, pml4_idx, pdp_idx, pd_idx, pt_idx);
 	
 	PML4TableEntry *pml4 = &((PML4TableEntry *)_pgt_virt_base)[pml4_idx];
 	
@@ -234,7 +234,7 @@ bool VMA::get_mapping(virt_addr_t va, phys_addr_t& pa)
 	if (!_pgt_virt_base) return false;
 	
 	table_idx_t pml4_idx, pdp_idx, pd_idx, pt_idx;
-	va_table_indicies(va, pml4_idx, pdp_idx, pd_idx, pt_idx);
+	va_table_indices(va, pml4_idx, pdp_idx, pd_idx, pt_idx);
 	
 	PML4TableEntry *pml4 = &((PML4TableEntry *)_pgt_virt_base)[pml4_idx];
 	
