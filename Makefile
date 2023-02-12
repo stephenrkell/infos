@@ -8,14 +8,26 @@ export MAKEFLAGS    += -rR --no-print-directory
 export q	    := @
 export arch	    ?= x86
 
+.PHONY: __default
 __default: all
-	
-export top-dir	    := $(CURDIR)
-export build-dir    := $(top-dir)/build
-export inc-dir	    := $(top-dir)/include
-export out-dir	    := $(top-dir)/out
 
--include $(build-dir)/Makefile.include
+export top-dir	    := $(CURDIR)
+export inc-dir	    := $(top-dir)/include
+export out-dir	    := $(top-dir)/../out
+
+# why do this? especially with '-'?
+# -include $(build-dir)/Makefile.include
+# I've pasted its contents here for now,
+# and got rid of build-dir.
+
+export builtin-name := builtin.o
+
+export cxx              := g++
+export ld               := ld
+export ln               := ln
+export objcopy  := objcopy
+
+export BUILD-TARGET = $(patsubst $(top-dir)/%,%,$@)
 
 export common-flags := -I$(inc-dir) -nostdinc -nostdlib -g -Wall -O3 -std=gnu++17 -fno-pic
 export common-flags += -mcmodel=kernel
@@ -25,7 +37,7 @@ export common-flags += -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -mno-ssse3 -mno-sse
 
 export cxxflags	:= $(common-flags)
 export asflags	:= $(common-flags)
-export ldflags  := -nostdlib -z nodefaultlib 
+export ldflags  := -nostdlib -z nodefaultlib
 
 export target           := $(out-dir)/infos-kernel
 export toplevel-obj	:= $(top-dir)/infos-kernel.o
@@ -42,28 +54,30 @@ export main-as-src  := $(patsubst %,$(top-dir)/%,$(shell find $(source-dirs) | g
 export main-obj	    := $(main-cpp-src:.cpp=.o) $(main-as-src:.S=.o)
 export main-dep	    := $(main-obj:.o=.d)
 
+.PHONY: all clean sources
 all: $(target)
-	@echo
-	@echo "  InfOS kernel build complete: $(target)"
-	@echo
-	
+
 clean: .FORCE
 	rm -f $(target) $(toplevel-obj) $(main-dep) $(main-obj)
-	
+
 sources: .FORCE
 	@echo $(main-cpp-src)
-	
+
 $(target): $(toplevel-obj) $(linker-script) $(out-dir)
 	@echo "  LD       $(BUILD-TARGET).64"
 	$(q)$(ld) -n -o $@.64 -T $(linker-script) $(ldflags) $(toplevel-obj)
-	
+	@echo
+	@echo "  InfOS kernel build complete: $(target)"
+	@echo
+
+
 	@echo "  OBJCOPY  $(BUILD-TARGET)"
 	$(q)$(objcopy) --input-target=elf64-x86-64 --output-target=elf32-i386 $@.64 $@
-	
+
 $(toplevel-obj): $(main-obj)
 	@echo "  LD       $(BUILD-TARGET)"
 	$(q)$(ld) -r -o $@ $(ldflags) $^
-	
+
 $(out-dir):
 	@echo "  MKDIR    $(BUILD-TARGET)"
 	$(q)mkdir $@
@@ -84,4 +98,4 @@ $(out-dir):
 
 -include $(main-dep)
 
-.PHONY: __default all clean .FORCE
+.PHONY: .FORCE
