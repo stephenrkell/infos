@@ -13,7 +13,7 @@ __default: all
 
 export top-dir	    := $(CURDIR)
 export inc-dir	    := $(top-dir)/include
-export out-dir	    := $(top-dir)/../out
+export out-dir	    := $(top-dir)/out
 
 # why do this? especially with '-'?
 # -include $(build-dir)/Makefile.include
