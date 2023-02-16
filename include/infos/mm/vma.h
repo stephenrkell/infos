@@ -67,6 +67,12 @@ namespace infos
 			bool get_mapping(virt_addr_t va, phys_addr_t& pa);
 			/* Does this virtual address map to anything? */
 			bool is_mapped(virt_addr_t va);
+			/* Like allocate_virt, but don't actually allocate physical memory. */
+			bool reserve_virt_unbacked(virt_addr_t va, int nr_pages, uint32_t cookie);
+			/* Like insert_mapping, but create an inactive PTE storing an arbitrary ('cookie') value. */
+			void insert_pte_cookie(virt_addr_t va, uint32_t cookie);
+			/* Like get_mapping, but updates cookie to the stored cookie (iff one is stored). */
+			bool get_pte_cookie(virt_addr_t va, uint32_t& cookie);
 			
 			void install_default_kernel_mapping();
 			

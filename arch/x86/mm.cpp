@@ -328,6 +328,10 @@ void infos::mm::VMA::insert_mapping(virt_addr_t va, phys_addr_t pa, MappingFlags
 	
 	mm_log.messagef(LogLevel::DEBUG, "vma: mapping va=%p -> pa=%p", va, pa);
 }
+void infos::mm::VMA::insert_pte_cookie(virt_addr_t va, uint32_t cookie)
+{
+	// FIXME: add implementation
+}
 
 FrameDescriptor *infos::mm::VMA::allocate_phys(int order)
 {
@@ -376,6 +380,12 @@ bool infos::mm::VMA::allocate_virt(virt_addr_t va, int nr_pages, int perm /* = -
 	return true;
 }
 
+bool infos::mm::VMA::reserve_virt_unbacked(virt_addr_t va, int nr_pages, uint32_t cookie)
+{
+	// FIXME: add implementation
+	return false;
+}
+
 bool infos::mm::VMA::is_mapped(virt_addr_t va)
 {
 	phys_addr_t pa;
@@ -416,8 +426,11 @@ bool infos::mm::VMA::get_mapping(virt_addr_t va, phys_addr_t& pa)
 	pa = pte->base_address() | __page_offset(va);
 	return true;
 }
-
-
+bool infos::mm::VMA::get_pte_cookie(virt_addr_t va, uint32_t& pa)
+{
+	// FIXME: add implementation
+	return false;
+}
 bool infos::mm::VMA::copy_to(virt_addr_t dest_va, const void* src, size_t size)
 {
 	phys_addr_t pa;
