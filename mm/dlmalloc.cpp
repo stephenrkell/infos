@@ -552,9 +552,9 @@ static inline void *mmap(void *addr, size_t size, int flags, int prot, int fd, i
 	unsigned int pages = size >> 12;
 	unsigned int order = infos::util::ilog2_ceil(pages);
 	
-	const infos::mm::PageDescriptor *pgd = infos::kernel::sys.mm().pgalloc().alloc_pages(order);
+	const infos::mm::FrameDescriptor *pfdescr = infos::kernel::sys.mm().pgalloc().allocate(order);
 	
-	return (void *)infos::kernel::sys.mm().pgalloc().pgd_to_vpa(pgd);
+	return (void *)infos::kernel::sys.mm().pgalloc().pfdescr_to_vpa(pfdescr);
 }
 
 static inline void *mremap(void *addr, size_t old_size, size_t new_size, int flags)
@@ -567,12 +567,12 @@ static inline int munmap(void *addr, size_t size)
 {
 	assert((size % 4096) == 0);
 	
-	infos::mm::PageDescriptor *pgd = infos::kernel::sys.mm().pgalloc().vpa_to_pgd((virt_addr_t)addr);
-	assert(pgd);
+	infos::mm::FrameDescriptor *pfdescr = infos::kernel::sys.mm().pgalloc().vpa_to_pfdescr((virt_addr_t)addr);
+	assert(pfdescr);
 
 	unsigned int pages = size >> 12;
 	unsigned int order = infos::util::ilog2_floor(pages);
-	infos::kernel::sys.mm().pgalloc().free_pages(pgd, order);
+	infos::kernel::sys.mm().pgalloc().free(pfdescr, order);
 	return 0;
 }
 

@@ -36,7 +36,7 @@ namespace infos
 		{
 			phys_addr_t base_address;
 			pfn_t base_pfn;
-			unsigned int nr_pages;
+			unsigned int nr_frames;
 			MemoryType::MemoryType type;
 		};
 		
@@ -51,7 +51,7 @@ namespace infos
 		public:
 			MemoryManager(kernel::Kernel& owner);
 			
-			void add_physical_memory(phys_addr_t addr, unsigned int nr_pages, MemoryType::MemoryType type);
+			void add_physical_memory(phys_addr_t addr, unsigned int nr_frames, MemoryType::MemoryType type);
 			bool initialise_allocators();
 			
 			PageAllocator& pgalloc() { return _page_alloc; }

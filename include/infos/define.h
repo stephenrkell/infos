@@ -85,6 +85,27 @@ typedef __gnuc_va_list va_list;
  * Converts a physical address into a kernel virtual address.
  * @param pa The physical address to convert.
  * @return The kernel virtual address of the given physical address.
+ *
+ * NOTE that this function and the one below work only because the
+ * kernel is loaded to a block of contiguous physical memory reserved
+ * during bootloading, and such that KERNEL_VMEM_START is mapped to
+ * physical address 0. The first 1M of this physical range is left
+ * totally unoccupied and
+ *
+ * When we reload the page tables early during boot, we preserve
+ * this mapping.
+ *
+ * Note also that the kernel is laid out in a specific way by
+ * the kernel.ld linker script: static contents, then two 8192-byte
+ * stacks, then heap. IF THE KERNEL HEAP IS NOT CONTIGUOUS IN PHYSICAL
+ * MEMORY, THESE FUNCTIONS WILL NOT WORK FOR HEAP ADDRESSES. Is the
+ * kernel heap contiguous in physical memory?
+ *
+ * In the linker script, _HEAP_START is the same as _IMAGE_END
+ * (except that _HEAP_START is represented as a kva, and _IMAGE_END
+ * as an offset from 0xFFFFFFFF80000000... confusingly, not from
+ * _IMAGE_START which is a virtual address at the 1M point in the kernel's
+ * image).
  */
 static inline virt_addr_t pa_to_kva(phys_addr_t pa)
 {
@@ -92,12 +113,19 @@ static inline virt_addr_t pa_to_kva(phys_addr_t pa)
 	return KERNEL_VMEM_START + pa;
 }
 
+/**
+ * Converts a kernel virtual address into a physical address.
+ * @param va The kernel virtual address to convert.
+ * @return The physical address of the given kernel virtual address.
+ */
 static inline phys_addr_t kva_to_pa(virt_addr_t va)
 {
 	assert((va >= KERNEL_VMEM_START) && (va <= KERNEL_VMEM_END));
 	return va - KERNEL_VMEM_START;
 }
 
+/* These two functions are like the ones below, but instead of
+ * the kernel mapping (which contains the lower part */
 static inline virt_addr_t pa_to_vpa(phys_addr_t pa)
 {
 	assert(pa < PMEM_VA_SIZE);

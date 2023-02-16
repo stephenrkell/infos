@@ -39,18 +39,18 @@ Thread::Thread(Process& owner, ThreadPrivilege::ThreadPrivilege privilege, threa
 	bzero(&_context, sizeof(_context));
 
 	// Allocate the kernel stack for this thread.
-	auto kernel_stack_pgd = owner.vma().allocate_phys(KERNEL_STACK_ORDER);
-	assert(kernel_stack_pgd);
+	auto kernel_stack_pfdescr = owner.vma().allocate_phys(KERNEL_STACK_ORDER);
+	assert(kernel_stack_pfdescr);
 
 	// Record the base address of the kernel stack.  Stacks grow down, so add on the size of the stack
 	// to the base address to create the starting address.
-	_context.kernel_stack = (uintptr_t)sys.mm().pgalloc().pgd_to_vpa(kernel_stack_pgd);
+	_context.kernel_stack = (uintptr_t)sys.mm().pgalloc().pfdescr_to_vpa(kernel_stack_pfdescr);
 	_context.kernel_stack += KERNEL_STACK_SIZE;
 
 	// TODO: Check for XSAVE
-	/*auto xsave_area_pgd = owner.vma().allocate_phys(0);
-	assert(xsave_area_pgd);
-	_context.xsave_area = (uintptr_t)sys.mm().pgalloc().pgd_to_vpa(xsave_area_pgd);
+	/*auto xsave_area_pfdescr = owner.vma().allocate_phys(0);
+	assert(xsave_area_pfdescr);
+	_context.xsave_area = (uintptr_t)sys.mm().pgalloc().pfdescr_to_vpa(xsave_area_pfdescr);
 
 	bzero((void *)_context.xsave_area, 0x1000);*/
 

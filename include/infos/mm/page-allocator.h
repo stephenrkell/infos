@@ -18,9 +18,9 @@ namespace infos
 {
 	namespace mm
 	{
-		namespace PageDescriptorType
+		namespace FrameDescriptorType
 		{
-			enum PageDescriptorType
+			enum FrameDescriptorType
 			{
 				INVALID = 0,
 				RESERVED = 1,
@@ -29,32 +29,46 @@ namespace infos
 			};
 		}
 
-		struct PageDescriptor
+		/* There is a FrameDescriptor for each frame of physical memory
+		 * that might be available to the page allocator. (In practice
+		 * we create one for every single frame of physical memory...
+		 * see setup_pf_descriptors() in page-allocator.cpp.) */
+		struct FrameDescriptor
 		{
-			PageDescriptor *next_free;
-			PageDescriptor *prev_free;
-			PageDescriptorType::PageDescriptorType type;
+			FrameDescriptor *next; // XXX: currently unused! but could be used for a free list
+			FrameDescriptor *prev; // XXX: currently unused! but could be used for a free list
+			FrameDescriptorType::FrameDescriptorType type;
 		} __aligned(16);
 
 		class MemoryManager;
 		class ObjectAllocator;
 
+		/* The abstract base class of page allocator algorithms.
+		 * 'Page allocators' are somewhat misnamed  because they really
+		 * allocate physical frames, not (virtual) pages. However, they
+		 * are almost always called from a VMA implementation which is
+		 * managing a page table, so at the point of use they can be
+		 * viewed as allocating both pages and  frames. */
 		class PageAllocatorAlgorithm
 		{
 		public:
-			virtual bool init(PageDescriptor *page_descriptors, uint64_t nr_page_descriptors) = 0;
+			virtual bool init(FrameDescriptor *pf_descriptors, uint64_t nr_pf_descriptors) = 0;
 
-			virtual void insert_page_range(PageDescriptor *start, uint64_t count) = 0;
-			virtual void remove_page_range(PageDescriptor *start, uint64_t count) = 0;
+			virtual void insert_range(FrameDescriptor *start, uint64_t count) = 0;
+			virtual void remove_range(FrameDescriptor *start, uint64_t count) = 0;
 
-			virtual PageDescriptor *allocate_pages(int order) = 0;
-			virtual void free_pages(PageDescriptor *base, int order) = 0;
+			virtual FrameDescriptor *allocate(int order) = 0;
+			virtual void free(FrameDescriptor *base, int order) = 0;
 
 			virtual const char *name() const = 0;
 
 			virtual void dump_state() const;
 		};
 
+		/**
+		 * The class of page allocators. As noted above for PageAllocatorAlgorithm,
+		 * these are misnamed because they really allocate frames.
+		 */
 		class PageAllocator : Allocator
 		{
 			friend class MemoryManager;
@@ -68,64 +82,63 @@ namespace infos
 			PageAllocatorAlgorithm *algorithm() const { return _allocator_algorithm; }
 			void algorithm(PageAllocatorAlgorithm &alg) { _allocator_algorithm = &alg; }
 
-			PageDescriptor *alloc_pages(int order);
-			void free_pages(PageDescriptor *pgd, int order);
+			FrameDescriptor *allocate(int order);
+			void free(FrameDescriptor *pfdescr, int order);
 
-			inline const PageDescriptor *alloc_page() { return alloc_pages(0); }
-			const PageDescriptor *alloc_zero_page();
-			inline void free_page(PageDescriptor *pgd) { return free_pages(pgd, 0); }
+			const FrameDescriptor *alloc_zero_frame();
+			inline void free_one(FrameDescriptor *pfdescr) { return free(pfdescr, 0); }
 
-			pfn_t pgd_to_pfn(const PageDescriptor *pgd) const
+			pfn_t pfdescr_to_pfn(const FrameDescriptor *pfdescr) const
 			{
-				uintptr_t offset = (uintptr_t)pgd - (uintptr_t)_page_descriptors;
-				offset /= sizeof(PageDescriptor);
+				uintptr_t offset = (uintptr_t)pfdescr - (uintptr_t)_pf_descriptors;
+				offset /= sizeof(FrameDescriptor);
 
 				return (pfn_t)offset;
 			}
 
-			phys_addr_t pgd_to_pa(const PageDescriptor *pgd) const
+			phys_addr_t pfdescr_to_pa(const FrameDescriptor *pfdescr) const
 			{
-				return (phys_addr_t)pfn_to_pa(pgd_to_pfn(pgd));
+				return (phys_addr_t)pfn_to_pa(pfdescr_to_pfn(pfdescr));
 			}
 
-			virt_addr_t pgd_to_vpa(const PageDescriptor *pgd) const
+			virt_addr_t pfdescr_to_vpa(const FrameDescriptor *pfdescr) const
 			{
-				return (virt_addr_t)pa_to_vpa(pgd_to_pa(pgd));
+				return (virt_addr_t)pa_to_vpa(pfdescr_to_pa(pfdescr));
 			}
 
-			virt_addr_t pgd_to_kva(const PageDescriptor *pgd) const
+			virt_addr_t pfdescr_to_kva(const FrameDescriptor *pfdescr) const
 			{
-				return (virt_addr_t)pa_to_kva(pgd_to_pa(pgd));
+				return (virt_addr_t)pa_to_kva(pfdescr_to_pa(pfdescr));
 			}
 
-			PageDescriptor *pfn_to_pgd(pfn_t pfn) const
+			FrameDescriptor *pfn_to_pfdescr(pfn_t pfn) const
 			{
-				if (pfn > _nr_pages)
+				if (pfn > _nr_frames)
 					return NULL;
-				return &_page_descriptors[pfn];
+				return &_pf_descriptors[pfn];
 			}
 
-			PageDescriptor *vpa_to_pgd(virt_addr_t addr) const
+			FrameDescriptor *vpa_to_pfdescr(virt_addr_t addr) const
 			{
 				phys_addr_t pa = vpa_to_pa(addr);
 				pfn_t pfn = pa_to_pfn(pa);
-				return pfn_to_pgd(pfn);
+				return pfn_to_pfdescr(pfn);
 			}
 
 		private:
-			uint64_t _nr_pages;
-			PageDescriptor *_page_descriptors;
+			uint64_t _nr_frames;
+			FrameDescriptor *_pf_descriptors;
 			PageAllocatorAlgorithm *_allocator_algorithm;
 			util::Mutex _mtx;
 
-			bool setup_page_descriptors();
+			bool setup_pf_descriptors();
 			bool self_test();
-			uint64_t reserve_page_range(pfn_t start, uint64_t nr_pages);
+			uint64_t reserve_range(pfn_t start, uint64_t nr_frames);
 		};
 
 		extern infos::kernel::ComponentLog pgalloc_log;
 
-#define RegisterPageAllocator(_class) \
+#define RegisterPageAllocatorAlgorithm(_class) \
 	static _class __pgalloc_class;    \
 	__section(".pgallocptr") infos::mm::PageAllocatorAlgorithm *__pgalloc_ptr_##_class = &__pgalloc_class
 	}

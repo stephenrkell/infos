@@ -18,33 +18,34 @@ using namespace infos::mm;
 using namespace infos::util;
 
 /**
- * A simple page allocation algorithm.
+ * A simple page allocation algorithm. As with PageAllocator, it is
+ * misnamed because it really allocates frames.
  */
-class SimplePageAllocator : public PageAllocatorAlgorithm
+class SimplePageAllocatorAlgorithm : public PageAllocatorAlgorithm
 {
 private:
-	PageDescriptor *_pgd_base;
-	uint64_t _nr_pgds;
+	FrameDescriptor *_pfdescr_base;
+	uint64_t _nr_pfdescrs;
 
 public:
-	bool init(PageDescriptor *page_descriptors, uint64_t nr_page_descriptors) override
+	bool init(FrameDescriptor *pf_descriptors, uint64_t nr_pf_descriptors) override
 	{
 		mm_log.messagef(LogLevel::DEBUG, "Simple Page Allocator online");
-		_pgd_base = page_descriptors;
-		_nr_pgds = nr_page_descriptors;
+		_pfdescr_base = pf_descriptors;
+		_nr_pfdescrs = nr_pf_descriptors;
 
 		return true;
 	}
 
-	PageDescriptor *allocate_pages(int order) override
+	FrameDescriptor *allocate(int order) override
 	{
 		const int nr_pages = (1 << order);
-		for (uint64_t idx = 0; idx < _nr_pgds; idx++)
+		for (uint64_t idx = 0; idx < _nr_pfdescrs; idx++)
 		{
 			bool found = true;
 			for (uint64_t subidx = idx; subidx < idx + nr_pages; subidx++)
 			{
-				if (_pgd_base[subidx].type != PageDescriptorType::AVAILABLE)
+				if (_pfdescr_base[subidx].type != FrameDescriptorType::AVAILABLE)
 				{
 					found = false;
 					idx = subidx;
@@ -54,33 +55,33 @@ public:
 
 			if (found)
 			{
-				return &_pgd_base[idx];
+				return &_pfdescr_base[idx];
 			}
 		}
 
 		return NULL;
 	}
 
-	void free_pages(PageDescriptor *pgd, int order) override
+	void free(FrameDescriptor *pfdescr, int order) override
 	{
-		PageDescriptor *base = pgd;
+		FrameDescriptor *base = pfdescr;
 		for (unsigned int i = 0; i < ((unsigned int)1 << (unsigned int)order); i++)
 		{
 			// Causes the self test to fail because we don't actually allocate the pages
 			// However, this is fine, because the self test doesn't really make sense in 
 			// the context of the simple page allocator, which has no internal state
-			assert(base[i].type == PageDescriptorType::ALLOCATED);
+			assert(base[i].type == FrameDescriptorType::ALLOCATED);
 		}
 	}
 
-	virtual void insert_page_range(PageDescriptor *start, uint64_t count) override
+	virtual void insert_range(FrameDescriptor *start, uint64_t count) override
 	{
-		mm_log.messagef(LogLevel::DEBUG, "Inserting available page range from %lx -- %lx", sys.mm().pgalloc().pgd_to_pfn(start), sys.mm().pgalloc().pgd_to_pfn(start + count));
+		mm_log.messagef(LogLevel::DEBUG, "Inserting available frames from %lx -- %lx", sys.mm().pgalloc().pfdescr_to_pfn(start), sys.mm().pgalloc().pfdescr_to_pfn(start + count));
 	}
 
-	virtual void remove_page_range(PageDescriptor *start, uint64_t count) override
+	virtual void remove_range(FrameDescriptor *start, uint64_t count) override
 	{
-		mm_log.messagef(LogLevel::DEBUG, "Removing available page range from %lx -- %lx", sys.mm().pgalloc().pgd_to_pfn(start), sys.mm().pgalloc().pgd_to_pfn(start + count));
+		mm_log.messagef(LogLevel::DEBUG, "Removing available frames from %lx -- %lx", sys.mm().pgalloc().pfdescr_to_pfn(start), sys.mm().pgalloc().pfdescr_to_pfn(start + count));
 	}
 
 	const char *name() const override { return "simple"; }
@@ -90,4 +91,4 @@ public:
 	}
 };
 
-RegisterPageAllocator(SimplePageAllocator);
+RegisterPageAllocatorAlgorithm(SimplePageAllocatorAlgorithm);

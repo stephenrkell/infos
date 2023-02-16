@@ -9,7 +9,7 @@ namespace infos
 {
 	namespace mm
 	{
-		class PageDescriptor;
+		class FrameDescriptor; // in page-allocator.h
 		
 		namespace MappingFlags
 		{
@@ -27,6 +27,16 @@ namespace infos
 			}
 		}
 		
+		/* In InfOS, a virtual address space is called a 'virtual memory area' or VMA.
+		 * Each process has its own VMA, and the implementation of a VMA involves
+		 * maintaining a multi-level page table. As this is 64-bit x86, the page table
+		 * has four levels (from top to bottom: PML4, PDP, PD, PT).
+		 * (Note: in Linux, 'VMA' means something slightly different!)
+		 *
+		 * The interface for allocating physical memory is provided by a separate object,
+		 * of class PageAllocator. (The algorithm used to allocate physical pages
+		 * is, in turn, separated from that!  An abstract class PageAllocatorAlgorithm
+		 * is defined, with one provided implementation, SimplePageAllocator.) */
 		class VMA
 		{
 		public:
@@ -35,28 +45,48 @@ namespace infos
 			
 			phys_addr_t pgt_base() const { return _pgt_phys_base; }
 			
-			PageDescriptor *allocate_phys(int order);
-			bool allocate_virt(virt_addr_t va, int nr_pages);
-			bool allocate_virt_any(int nr_pages);
-			
+			/** Allocate some pages in this VMA, each backed by frames of physical memory.
+			 *
+			 * @arg order The logarithm (base 2) of how many pages to allocate.
+			 *
+			 * This works by calling allocate() on the active page allocator. Then
+			 * we do some bookkeeping: make a FrameAllocation structure to describe the
+			 * allocation, append to the list of page allocations * (a descriptor and a ), then call pnzero.
+			 * The 'order' argument is the log base 2 of the number of pages to
+			 * allocate. */
+			FrameDescriptor *allocate_phys(int order);
+			/* Allocates a whole number of pages at a given virtual address, with permissions. */
+			bool allocate_virt(virt_addr_t va, int nr_pages, int perm = -1);
+			/* Allocates a whole number of pages at any free virtual address,
+			 * with permissions. NOTE: this is unimplemented in vma.cpp. */
+			bool allocate_virt_any(int nr_pages, int perm = -1);
+			/* Install a mapping from a (virtual) page to a (physical) frame, with flags. */
 			void insert_mapping(virt_addr_t va, phys_addr_t pa, MappingFlags::MappingFlags flags);
+			/* Does this virtual address map to anything? Update pa to the physical address. */
 			bool get_mapping(virt_addr_t va, phys_addr_t& pa);
+			/* Does this virtual address map to anything? */
 			bool is_mapped(virt_addr_t va);
 			
 			void install_default_kernel_mapping();
 			
 			bool copy_to(virt_addr_t dest_va, const void *src, size_t size);
 			
+			/* Print the page tables to the MM message log. */
 			void dump();
 					
 		private:
-			struct PageAllocation
+			struct FrameAllocation
 			{
-				PageDescriptor *descriptor_base;
+				FrameDescriptor *descriptor_base;
 				int allocation_order;
 			};
-			
-			util::List<PageAllocation> _page_allocations;
+			/* The layout of the virtual address space is described *twice*,
+			 * and these must be kept in sync. One is the page table itself.
+			 * The other is the following list of 'page allocations'. Each
+			 * allocation is a range of frames of physical memory, recorded
+			 * as the base descriptor of the range followed by the 'order'
+			 * of its size, i.e. the log base 2 of the number of frames. */
+			util::List<FrameAllocation> _frame_allocations;
 			
 			phys_addr_t _pgt_phys_base;
 			virt_addr_t _pgt_virt_base;

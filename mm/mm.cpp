@@ -36,10 +36,10 @@ MemoryManager::MemoryManager(Kernel& owner)
 
 }
 
-void MemoryManager::add_physical_memory(phys_addr_t addr, unsigned int nr_pages, MemoryType::MemoryType type)
+void MemoryManager::add_physical_memory(phys_addr_t addr, unsigned int nr_frames, MemoryType::MemoryType type)
 {
 	// Don't add any physical memory blocks that contain no pages.
-	if (nr_pages == 0) {
+	if (nr_frames == 0) {
 		return;
 	}
 	
@@ -52,20 +52,20 @@ void MemoryManager::add_physical_memory(phys_addr_t addr, unsigned int nr_pages,
 	
 	mm_log.messagef(LogLevel::INFO, "PMB: %010lx--%010lx (%d kB) %s", 
 			addr, 
-			addr + (nr_pages * _page_size), 
-			KB(nr_pages * _page_size),
+			addr + (nr_frames * _page_size), 
+			KB(nr_frames * _page_size),
 			(type == MemoryType::UNUSABLE) ? "(unusable)" : "");
 	
 	// Fill in a new physical memory block structure
 	_phys_mem_blocks[_nr_phys_mem_blocks].base_address = addr;
 	_phys_mem_blocks[_nr_phys_mem_blocks].base_pfn = addr >> 12;
-	_phys_mem_blocks[_nr_phys_mem_blocks].nr_pages = nr_pages;
+	_phys_mem_blocks[_nr_phys_mem_blocks].nr_frames = nr_frames;
 	_phys_mem_blocks[_nr_phys_mem_blocks].type = type;
 	_nr_phys_mem_blocks++;
 	
 	// Only normal memory counts towards the last PFN
 	if (type == MemoryType::NORMAL) {
-		pfn_t last_pfn = ((addr + (nr_pages * _page_size)) >> 12) - 1;
+		pfn_t last_pfn = ((addr + (nr_frames * _page_size)) >> 12) - 1;
 		if (last_pfn > _last_pfn) {
 			_last_pfn = last_pfn;
 		}
@@ -76,14 +76,14 @@ bool MemoryManager::test_page_allocator_order(int order)
 {
 	mm_log.messagef(LogLevel::DEBUG, "%d page allocation", 1 << order);
 	
-	const PageDescriptor *pages8 = _page_alloc.alloc_pages(order);
+	const FrameDescriptor *frames8 = _page_alloc.allocate(order);
 	
 	mm_log.message(LogLevel::DEBUG, "---");
 	for (int i = 0; i < (1<<order); i++) {
 		mm_log.messagef(LogLevel::DEBUG, "[%d] pfn=%lx addr=%p", 
 				i,
-				_page_alloc.pgd_to_pfn(&pages8[i]),
-				_page_alloc.pgd_to_vpa(&pages8[i]));
+				_page_alloc.pfdescr_to_pfn(&frames8[i]),
+				_page_alloc.pfdescr_to_vpa(&frames8[i]));
 	}
 	
 	return true;
@@ -160,12 +160,12 @@ bool MemoryManager::initialise_allocators()
 
 const PhysicalMemoryBlock *MemoryManager::lookup_phys_block(phys_addr_t addr)
 {
-	// Iterate over each physical memory block, and return the descriptor
-	// if the specified address is within its range.
+	// Iterate over each physical memory block, and return the one (if any)
+	// whose address range contains the specified address.
 	for (unsigned int i = 0; i < _nr_phys_mem_blocks; i++) {
 		PhysicalMemoryBlock& block = _phys_mem_blocks[i];
 		
-		if (addr >= block.base_address && addr < (block.base_address + (block.nr_pages * _page_size))) {
+		if (addr >= block.base_address && addr < (block.base_address + (block.nr_frames * _page_size))) {
 			return &block;
 		}
 	}
