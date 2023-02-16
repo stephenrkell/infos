@@ -34,7 +34,7 @@ static inline void va_table_indices(virt_addr_t va, table_idx_t& pm, table_idx_t
 /* On 64-bit x86, the lower bits 0..6 inclusive and 8 have the same flag meaning
  * at all levels in the page table. Bit 7 is Page Size (PS) in higher levels, and
  * Page Attribute Table (PAT) at the lowest (PT) level. PAT is bit 12 at higher
- * levels.
+ * levels. This picture is useful: https://wiki.osdev.org/File:64-bit_page_tables2.png
  * Leave this at namespace scope, not inside GenericPageTableEntry, so that ORing
  * together doesn't get noisy. It's a pity we can't "using" a class-level definition
  * to pull these into scope. */

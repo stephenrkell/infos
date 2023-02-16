@@ -19,6 +19,8 @@ using namespace infos::util;
 
 VMA::VMA()
 {
+	/* Allocate a single page to hold the root of the page table
+	 * for this VMA. */
 	auto pfdescr = allocate_phys(0);
 	assert(pfdescr);
 	

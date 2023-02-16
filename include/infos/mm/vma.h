@@ -55,12 +55,13 @@ namespace infos
 			 * The 'order' argument is the log base 2 of the number of pages to
 			 * allocate. */
 			FrameDescriptor *allocate_phys(int order);
-			/* Allocates a whole number of pages at a given virtual address, with permissions. */
+			/* Allocates a whole number of pages at a given virtual address, with permissions.
+			 * Permissions are bitwise ORed from mm::MappingFlags::MappingFlags. */
 			bool allocate_virt(virt_addr_t va, int nr_pages, int perm = -1);
 			/* Allocates a whole number of pages at any free virtual address,
 			 * with permissions. NOTE: this is unimplemented in vma.cpp. */
 			bool allocate_virt_any(int nr_pages, int perm = -1);
-			/* Install a mapping from a (virtual) page to a (physical) frame, with flags. */
+			/* Install a mapping from a (virtual) page to a (physical) frame, with permissions. */
 			void insert_mapping(virt_addr_t va, phys_addr_t pa, MappingFlags::MappingFlags flags);
 			/* Does this virtual address map to anything? Update pa to the physical address. */
 			bool get_mapping(virt_addr_t va, phys_addr_t& pa);

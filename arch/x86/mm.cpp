@@ -187,7 +187,7 @@ static bool reinitialise_pgt()
 	uintptr_t addr = 0;
 	for (unsigned int i = 0; i < 1<<9; i++) {
 		pdp0_pd0[i] = addr | PTE_PRESENT | PTE_WRITABLE | PTE_HUGE;
-		pdp0_pd1[i] = (addr + (1<<30)) | PTE_PRESENT | PTE_WRITABLE | PTE_HUGE;;
+		pdp0_pd1[i] = (addr + (1<<30)) | PTE_PRESENT | PTE_WRITABLE | PTE_HUGE;
 		addr += 1<<21;
 	}
 
@@ -262,18 +262,19 @@ bool infos::arch::x86::mm_pf_init()
 	return x86arch.irq_manager().install_exception_handler(IRQ_PAGE_FAULT, handle_page_fault, NULL);
 }
 
-/* Pasted from vma.cpp, which used to be x86-specific. At least now the
- * arch-dep code is in a sane place in the tree. It is nasty that these
- * definitions are still namespaced to the global VMA, not anything
- * x86-specific. */
+/* Ths following is pasted from vma.cpp, to eliminate its x86-specificity.
+ * It's better now that the arch-dep code is in a sane place in the tree,
+ * but ideally these definitions would not be members of the global VMA
+ * class, but instead something x86-specific that slots in. */
+
 void VMA::install_default_kernel_mapping()
 {
 	assert(__template_pml4);
 	
-	uint64_t *pgt = (uint64_t *)_pgt_virt_base;
+	uint64_t *pml4 = (uint64_t *)_pgt_virt_base;
 	
-	pgt[0x1ff] = __template_pml4[0x1ff];
-	pgt[0x100] = __template_pml4[0x100];
+	pml4[0x1ff] = __template_pml4[0x1ff];
+	pml4[0x100] = __template_pml4[0x100];
 }
 
 void infos::mm::VMA::insert_mapping(virt_addr_t va, phys_addr_t pa, MappingFlags::MappingFlags flags)
@@ -281,49 +282,49 @@ void infos::mm::VMA::insert_mapping(virt_addr_t va, phys_addr_t pa, MappingFlags
 	table_idx_t pml4_idx, pdp_idx, pd_idx, pt_idx;
 	va_table_indices(va, pml4_idx, pdp_idx, pd_idx, pt_idx);
 	
-	PML4TableEntry *pml4 = &((PML4TableEntry *)_pgt_virt_base)[pml4_idx];
+	PML4TableEntry *pml4e = &((PML4TableEntry *)_pgt_virt_base)[pml4_idx];
 	
-	if (pml4->base_address() == 0) {
+	if (pml4e->base_address() == 0) {
 		auto pdp = allocate_phys(0);
 		assert(pdp);
 		
-		pml4->base_address(sys.mm().pgalloc().pfdescr_to_pa(pdp));
-		pml4->present(true);
-		pml4->writable(true);
-		pml4->user(true);
+		pml4e->base_address(sys.mm().pgalloc().pfdescr_to_pa(pdp));
+		pml4e->present(true);
+		pml4e->writable(true);
+		pml4e->user(true);
 	}
 	
-	PDPTableEntry *pdp = &((PDPTableEntry *)pa_to_vpa(pml4->base_address()))[pdp_idx];
+	PDPTableEntry *pdpe = &((PDPTableEntry *)pa_to_vpa(pml4e->base_address()))[pdp_idx];
 	
-	if (pdp->base_address() == 0) {
+	if (pdpe->base_address() == 0) {
 		auto pd = allocate_phys(0);
 		assert(pd);
 		
-		pdp->base_address(sys.mm().pgalloc().pfdescr_to_pa(pd));
-		pdp->present(true);
-		pdp->writable(true);
-		pdp->user(true);
+		pdpe->base_address(sys.mm().pgalloc().pfdescr_to_pa(pd));
+		pdpe->present(true);
+		pdpe->writable(true);
+		pdpe->user(true);
 	}
 	
-	PDTableEntry *pd = &((PDTableEntry *)pa_to_vpa(pdp->base_address()))[pd_idx];
+	PDTableEntry *pde = &((PDTableEntry *)pa_to_vpa(pdpe->base_address()))[pd_idx];
 	
-	if (pd->base_address() == 0) {
+	if (pde->base_address() == 0) {
 		auto pt = allocate_phys(0);
 		assert(pt);
 		
-		pd->base_address(sys.mm().pgalloc().pfdescr_to_pa(pt));
-		pd->present(true);
-		pd->writable(true);
-		pd->user(true);
+		pde->base_address(sys.mm().pgalloc().pfdescr_to_pa(pt));
+		pde->present(true);
+		pde->writable(true);
+		pde->user(true);
 	}
 	
-	PTTableEntry *pt = &((PTTableEntry *)pa_to_vpa(pd->base_address()))[pt_idx];
+	PTTableEntry *pte = &((PTTableEntry *)pa_to_vpa(pde->base_address()))[pt_idx];
 	
-	pt->base_address(pa);
+	pte->base_address(pa);
 	
-	if (flags & MappingFlags::Present) pt->present(true);
-	if (flags & MappingFlags::Writable) pt->writable(true);
-	if (flags & MappingFlags::User) pt->user(true);
+	if (flags & MappingFlags::Present) pte->present(true);
+	if (flags & MappingFlags::Writable) pte->writable(true);
+	if (flags & MappingFlags::User) pte->user(true);
 	
 	mm_log.messagef(LogLevel::DEBUG, "vma: mapping va=%p -> pa=%p", va, pa);
 }
@@ -343,12 +344,12 @@ FrameDescriptor *infos::mm::VMA::allocate_phys(int order)
 	return pfdescr;
 }
 
-bool infos::mm::VMA::allocate_virt_any(int nr_pages, int flags /* = -1 */)
+bool infos::mm::VMA::allocate_virt_any(int nr_pages, int perm /* = -1 */)
 {
 	return false;
 }
 
-bool infos::mm::VMA::allocate_virt(virt_addr_t va, int nr_pages, int flags /* = -1 */)
+bool infos::mm::VMA::allocate_virt(virt_addr_t va, int nr_pages, int perm /* = -1 */)
 {
 	if (nr_pages == 0) return false;
 	
@@ -361,8 +362,12 @@ bool infos::mm::VMA::allocate_virt(virt_addr_t va, int nr_pages, int flags /* = 
 	
 	virt_addr_t vbase = va;
 	phys_addr_t pbase = sys.mm().pgalloc().pfdescr_to_pa(pfdescr);
+	mm::MappingFlags::MappingFlags always_mapping_flags = MappingFlags::Present | MappingFlags::User;
+	mm::MappingFlags::MappingFlags default_mapping_flags = always_mapping_flags | MappingFlags::Writable;
 	for (unsigned int i = 0; i < (1u << order); i++) {
-		insert_mapping(vbase, pbase, MappingFlags::Present | MappingFlags::User | MappingFlags::Writable);
+		insert_mapping(vbase, pbase,
+			(perm == -1) ? default_mapping_flags : (always_mapping_flags | mm::MappingFlags::MappingFlags(perm))
+		);
 		
 		vbase += 0x1000;
 		pbase += 0x1000;
@@ -384,31 +389,31 @@ bool infos::mm::VMA::get_mapping(virt_addr_t va, phys_addr_t& pa)
 	table_idx_t pml4_idx, pdp_idx, pd_idx, pt_idx;
 	va_table_indices(va, pml4_idx, pdp_idx, pd_idx, pt_idx);
 	
-	PML4TableEntry *pml4 = &((PML4TableEntry *)_pgt_virt_base)[pml4_idx];
+	PML4TableEntry *pml4e = &((PML4TableEntry *)_pgt_virt_base)[pml4_idx];
 	
-	if (!pml4->present()) {
+	if (!pml4e->present()) {
 		return false;
 	}
 	
-	PDPTableEntry *pdp = &((PDPTableEntry *)pa_to_vpa(pml4->base_address()))[pdp_idx];
+	PDPTableEntry *pdpe = &((PDPTableEntry *)pa_to_vpa(pml4e->base_address()))[pdp_idx];
 	
-	if (!pdp->present()) {
+	if (!pdpe->present()) {
 		return false;
 	}
 	
-	PDTableEntry *pd = &((PDTableEntry *)pa_to_vpa(pdp->base_address()))[pd_idx];
+	PDTableEntry *pde = &((PDTableEntry *)pa_to_vpa(pdpe->base_address()))[pd_idx];
 	
-	if (!pd->present()) {
+	if (!pde->present()) {
 		return false;
 	}
 	
-	PTTableEntry *pt = &((PTTableEntry *)pa_to_vpa(pd->base_address()))[pt_idx];
+	PTTableEntry *pte = &((PTTableEntry *)pa_to_vpa(pde->base_address()))[pt_idx];
 	
-	if (!pt->present()) {
+	if (!pte->present()) {
 		return false;
 	}
 	
-	pa = pt->base_address() | __page_offset(va);
+	pa = pte->base_address() | __page_offset(va);
 	return true;
 }
 

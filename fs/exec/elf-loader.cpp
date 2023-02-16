@@ -76,7 +76,9 @@ enum class ProgramHeaderEntryType : uint32_t
 	PT_PHDR = 6
 };
 
-enum class ProgramHeaderEntryFlags : uint32_t
+/* Don't use 'enum class' for this one, because it makes it
+ * more noisy to bitwise AND them. */
+enum ProgramHeaderEntryFlags
 {
 	PF_X = 1,
 	PF_W = 2,
@@ -147,6 +149,7 @@ Process *ElfLoader::load(const String &cmdline)
 	bool use_interp = false;
 
 	Process *np = new Process("user", false, (Thread::thread_proc_t)hdr.entry_point);
+	using namespace mm::MappingFlags;
 	for (unsigned int i = 0; i < hdr.phnum; i++)
 	{
 		ELF64ProgramHeaderEntry ent;
@@ -166,9 +169,8 @@ Process *ElfLoader::load(const String &cmdline)
 		{
 			if (!np->vma().is_mapped(ent.vaddr))
 			{
-				np->vma().allocate_virt(ent.vaddr, __align_up_page(ent.memsz) >> 12);
+				np->vma().allocate_virt(ent.vaddr, __align_up_page(ent.memsz) >> 12, -1);
 			}
-
 			char *buffer = new char[ent.filesz];
 			_file.pread(buffer, ent.filesz, ent.offset);
 			np->vma().copy_to(ent.vaddr, buffer, ent.filesz);
