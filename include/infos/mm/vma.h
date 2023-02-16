@@ -80,12 +80,9 @@ namespace infos
 				FrameDescriptor *descriptor_base;
 				int allocation_order;
 			};
-			/* The layout of the virtual address space is described *twice*,
-			 * and these must be kept in sync. One is the page table itself.
-			 * The other is the following list of 'page allocations'. Each
-			 * allocation is a range of frames of physical memory, recorded
-			 * as the base descriptor of the range followed by the 'order'
-			 * of its size, i.e. the log base 2 of the number of frames. */
+			/* This allocation list is a list of <base, run length> pairs
+			 * within the FrameDescriptor vector, except that the run length
+			 * is really an 'order' (log base 2 of the length). */
 			util::List<FrameAllocation> _frame_allocations;
 			
 			phys_addr_t _pgt_phys_base;
