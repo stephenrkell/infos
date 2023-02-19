@@ -29,7 +29,7 @@ export objcopy  := objcopy
 
 export BUILD-TARGET = $(patsubst $(top-dir)/%,%,$@)
 
-export common-flags := -I$(inc-dir) -nostdinc -nostdlib -g -Wall -O3 -std=gnu++17 -fno-pic
+export common-flags := -I$(inc-dir) -nostdinc -nostdlib -g3 -ggdb -Wall -O1 -std=gnu++17 -fno-pic
 export common-flags += -mcmodel=kernel
 export common-flags += -ffreestanding -fno-builtin -fno-omit-frame-pointer -fno-rtti -fno-exceptions -fno-stack-protector
 export common-flags += -fno-delete-null-pointer-checks -mno-red-zone
