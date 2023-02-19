@@ -15,15 +15,21 @@
 #include <infos/util/list.h>
 #include <infos/util/string.h>
 #include <infos/util/event.h>
+#include <infos/fs/file.h>
 
 namespace infos
 {
+	namespace fs
+	{
+		class File;
+	}
 	namespace kernel
 	{
 		class Process
 		{
 		public:
-			Process(const util::String& name, bool kernel_process, Thread::thread_proc_t entry_point);
+			Process(const util::String& name, bool kernel_process,
+				Thread::thread_proc_t entry_point, fs::File *file = nullptr);
 			virtual ~Process();
 
 			const util::String& name() const { return _name; }
@@ -35,6 +41,7 @@ namespace infos
 			inline bool kernel_process() const { return _kernel_process; }
 
 			mm::VMA& vma() { return _vma; }
+			fs::File& file() { return *_file; }
 			Thread& main_thread() const { return *_main_thread; }
 
 			Thread& create_thread(ThreadPrivilege::ThreadPrivilege privilege, Thread::thread_proc_t entry_point,
@@ -46,6 +53,7 @@ namespace infos
 			const util::String _name;
 			bool _kernel_process, _terminated;
 			mm::VMA _vma;
+			fs::File *_file; // the executable file
 			util::List<Thread *> _threads;
 			Thread *_main_thread;
 
