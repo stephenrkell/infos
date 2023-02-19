@@ -40,6 +40,7 @@ namespace infos
 				void dump_thread_context(const kernel::ThreadContext& context) const override;
 				void dump_current_context() const override;
 				void dump_stack(const kernel::ThreadContext& context) const override;
+				void dump_one_user_frame(uint64_t rip, uint64_t rsp, const char *fnname) const;
 
 				void invoke_kernel_syscall(int nr) override;
 				

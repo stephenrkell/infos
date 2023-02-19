@@ -120,6 +120,10 @@ void X86Arch::dump_stack(const kernel::ThreadContext& context) const
 {
 
 }
+void X86Arch::dump_one_user_frame(uint64_t rip, uint64_t rsp, const char *name) const
+{
+	syslog.messagef(LogLevel::DEBUG, "%08lx %08lx %s", (unsigned long) rip, (unsigned long) rsp, name);
+}
 
 void X86Arch::dump_native_context(const X86Context& native_context) const
 {
