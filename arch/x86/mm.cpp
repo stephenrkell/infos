@@ -23,6 +23,8 @@
 #include <infos/util/string.h>
 #include <arch/arch.h>
 #include <arch/x86/x86-arch.h>
+#include <infos/fs/exec/elf-loader.h>
+#include <infos/fs/file.h>
 
 using namespace infos::arch::x86;
 using namespace infos::kernel;
@@ -52,7 +54,65 @@ static void handle_page_fault(const IRQ *irq, void *priv)
 
 	// If there is a current thread, abort it.
 	syslog.messagef(LogLevel::WARNING, "*** PAGE FAULT @ vaddr=%p rip=%p proc=%s", fault_address, current_thread->context().native_context->rip, current_thread->owner().name().c_str());
+	/* Is there a non-zero cookie in that PTE? */
+	VMA& vma = current_thread->owner().vma();
+	uint32_t cookie;
+	bool success = vma.get_pte_cookie(fault_address, cookie);
+	if (success && cookie)
+	{
+		syslog.messagef(LogLevel::DEBUG, "page fault looks like a demand-paging event, cookie 0x%x", (unsigned) cookie);
+		/* We assume the cookie is a file offset, ORed with the mapping flags
+		 * in its low-order bits (12 bits are free, because offsets are always
+		 * a multiple of the page size).
+		 *
+		 * If we find a cookie entry, we map some memory, populate it by doing the
+		 * file read, and resume the program. Since we never leave the memory
+		 * at the faulting address in the same state as it was initially, we are
+		 * not setting up a fault loop.
+		 *
+		 * Normally it is not OK to do file I/O in an interrupt handler! Even worse
+		 * is that the file I/O we do is synchronous... the interrupt handler will
+		 * spin waiting for it to come in. So what we are doing will tank system
+		 * responsiveness and waste a lot of CPU cycles. A more realistic version
+		 * would start the I/O here, and set the process state to waiting on that
+		 * I/O... then, late,r when the I/O has completed, the interrupt handler
+		 * will make the process runnable again. Instead we are blocking the whole
+		 * CPU while we synchronously do the programmed I/O.
+		 *
+		 * Note that pread() is implemented in the obfuscated fs driver, but
+		 * basically it does read_blocks() which does an ATA PIO command transfer
+		 * and then a spinning ('pause'-based) poll loop (no interrupts!). To make
+		 * that work in an interrupt handler context, when other interrupts are
+		 * disabled -- including the timer interrupt -- I have written a special
+		 * spin loop that doesn't rely on the timer advancing... instead we use
+		 * a pre-calibrated busy-wait loop.
+		 */
+		uint64_t fault_address_page_base = fault_address & ~(__page_size - 1);
+		/* We must always make it writeable initially! Becuase we are going to write to it.  */
+		vma.allocate_virt(fault_address_page_base, 1, -1);
+		uint32_t file_offset = cookie & ~(__page_size - 1);
+		syslog.messagef(LogLevel::DEBUG, "we will synchronously read from file offset 0x%x",
+			(unsigned) file_offset);
+		for (int i = 0; i < 4; ++i) /* a page is 4 disk blocks */
+		{
+			unsigned char buffer[512];
+			current_thread->owner().file().pread(buffer, sizeof buffer,
+				file_offset + i*sizeof buffer);
+			vma.copy_to(fault_address_page_base + i*sizeof buffer, buffer, sizeof buffer);
+			if (i == 0)
+			{
+				syslog.messagef(LogLevel::DEBUG, "synchronous read seems to be working; "
+					"first bytes %02x %02x %02x %02x", (unsigned int) buffer[0], (unsigned int) buffer[1],
+					(unsigned int) buffer[2], (unsigned int) buffer[3]);
+			}
+		}
+		syslog.messagef(LogLevel::DEBUG, "finished synchronous read of one page from file offset 0x%x",
+			(unsigned) file_offset);
+		// FIXME: fixup mapping flags, e.g. if it wasn't supposed to be writeable
 
+		// OK, let's hope that worked...
+		return;
+	}
 	// TODO: support passing page-faults into threads.
 	current_thread->owner().terminate(-1);
 }
