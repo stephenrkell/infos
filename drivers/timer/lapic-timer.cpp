@@ -17,6 +17,7 @@
 #include <infos/util/time.h>
 #include <arch/x86/context.h>
 #include <arch/x86/irq.h>
+#include <arch/arch.h>
 
 using namespace infos::kernel;
 using namespace infos::drivers;
@@ -208,6 +209,12 @@ static uint64_t last_tsc = 0;
  */
 void LAPICTimer::lapic_timer_irq_handler(const IRQ *irq, void* priv)
 {
+	/* During startup, before we enable the timer interrupt proper, we will
+	 * program the LAPIC to do a one-shot timer expiry, which we use to
+	 * break out of the tight loop that is incrementing a counter. The counter
+	 * value will serve as our calibration for a tight loop-based sleep
+	 * routine. */
+	if (busywait_doing_calibration) { busywait_doing_calibration = 0; return; }
 	/*uint32_t tscl, tsch;
 	asm volatile("rdtsc" : "=a"(tscl), "=d"(tsch));
 

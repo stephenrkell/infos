@@ -130,11 +130,6 @@ bool infos::arch::x86::timer_init()
 	if (!sys.device_manager().register_device(*lapic_timer))
 		return false;
 
-	// Set the timer to be periodic, with a period of 10ms, and start
-	// the timer.
-	lapic_timer->init_periodic((lapic_timer->frequency() >> 4) / 100);
-	lapic_timer->start();
-
 	return true;
 }
 

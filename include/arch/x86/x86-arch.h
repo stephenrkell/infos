@@ -31,6 +31,8 @@ namespace infos
 					asm volatile("pushf ; pop %0" : "=rm"(rflags) : : "memory");
 					return !!(rflags & 0x200);
 				}
+				void calibrate_busywait_loop(kernel::DeviceManager& dm);
+				void set_periodic_timer_interrupt(kernel::DeviceManager& dm);
 
 				kernel::CPU& get_current_cpu() override { return *_cpus[0]; }
 				

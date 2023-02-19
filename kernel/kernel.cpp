@@ -65,6 +65,14 @@ void Kernel::start(BottomFn bottom)
 {
 	syslog.message(LogLevel::INFO, "OK!  Starting the kernel...");
 
+	/* We do this as late as possible so that we know we are ready to
+	 * handle interrupts. */
+	_arch.calibrate_busywait_loop(_device_manager);
+	// Now set the timer how we need it for scheduling.
+	// Set the timer to be periodic, with a period of 10ms, and start
+	// the timer. Note that interrupts are not enabled yet.
+	_arch.set_periodic_timer_interrupt(_device_manager);
+
 	initialise_tod();
 
 	_kernel_process = new Process("kernel", true, (Thread::thread_proc_t) &start_kernel_threadproc_tramp);
@@ -263,7 +271,7 @@ Process *Kernel::launch_process(const String& path, const String& cmdline)
 		syslog.messagef(LogLevel::DEBUG, "Starting process... %p", np->main_thread().context().native_context->rdi);
 		np->start();
 		delete loader;
-		delete image;
+		// successful use of loader transfers ownership of the file to the process
 
 		return np;
 	} else {
@@ -274,8 +282,17 @@ Process *Kernel::launch_process(const String& path, const String& cmdline)
 
 void Kernel::spin_delay(util::Nanoseconds ns)
 {
-	KernelRuntimeClock::Timepoint target = sys.runtime() + ns;
-	while (sys.runtime() < target) asm volatile("pause");
+	if (sys.arch().interrupts_enabled())
+	{
+		KernelRuntimeClock::Timepoint target = sys.runtime() + ns;
+		while (sys.runtime() < target) asm volatile("pause");
+	}
+	else
+	{
+		unsigned real_ns = ns.count();
+		unsigned us = (unsigned long) real_ns / 1000;
+		for (unsigned i = 0; i < us; ++i) busywait_1us();
+	}
 }
 
 void Kernel::dump_partitions()

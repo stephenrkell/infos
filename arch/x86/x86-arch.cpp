@@ -20,6 +20,7 @@
 #include <infos/kernel/thread.h>
 #include <infos/kernel/process.h>
 #include <infos/util/string.h>
+#include <infos/drivers/timer/lapic-timer.h>
 
 extern "C" {
 	infos::kernel::Thread *current_thread;
@@ -178,6 +179,39 @@ IRQ *X86Arch::request_irq()
 {
 
 	return NULL; //_irq_manager.request_irq();
+}
+
+extern "C"
+{
+uint64_t busywait_doing_calibration;
+uint64_t busywait_cmploops_per_us;
+}
+
+void X86Arch::calibrate_busywait_loop(kernel::DeviceManager& dm)
+{
+	infos::drivers::timer::LAPICTimer *lapic_timer;
+	if (!dm.try_get_device_by_class(infos::drivers::timer::LAPICTimer::LAPICTimerDeviceClass, lapic_timer))
+		arch_abort();
+	// First do the calibration.
+	uint64_t n = 0;
+	busywait_doing_calibration = 1;
+	lapic_timer->init_oneshot((lapic_timer->frequency() >> 4) / 1000); // 10ms
+	lapic_timer->start();
+	enable_interrupts();
+	n = busywait_calibrate(); // only returns once interrupt handler has run once
+	disable_interrupts();
+	lapic_timer->stop();
+	uint64_t cmploops_per_us = n / 1000;
+	busywait_cmploops_per_us = cmploops_per_us;
+	syslog.messagef(LogLevel::DEBUG, "busywait calibration loop count reached %ld", busywait_cmploops_per_us);
+}
+void X86Arch::set_periodic_timer_interrupt(kernel::DeviceManager& dm)
+{
+	infos::drivers::timer::LAPICTimer *lapic_timer;
+	if (!dm.try_get_device_by_class(infos::drivers::timer::LAPICTimer::LAPICTimerDeviceClass, lapic_timer))
+		arch_abort();
+	lapic_timer->init_periodic((lapic_timer->frequency() >> 4) / 100);
+	lapic_timer->start();
 }
 
 extern "C" {

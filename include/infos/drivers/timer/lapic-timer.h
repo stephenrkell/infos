@@ -49,6 +49,7 @@ namespace infos {
 
 			private:
 				uint64_t _frequency;
+				uint64_t _cmploops_per_us;
 
 				kernel::IRQ *_irq;
 				drivers::irq::LAPIC *_lapic;
