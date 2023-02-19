@@ -148,8 +148,10 @@ static inline phys_addr_t pfn_to_pa(pfn_t pfn)
 	return (phys_addr_t)(pfn << __page_bits);
 }
 
-#define __align_up(__value, __alignment) (__value + ((__value % __alignment == 0) ? 0 : (__alignment - (__value % __alignment))))
-#define __align_up_page(__value) __align_up(__value, __page_size)
+#define __align_up(__value, __alignment) ((__value) + (((__value) % (__alignment) == 0) ? 0 : ((__alignment) - ((__value) % (__alignment)))))
+#define __align_up_page(__value) __align_up((__value), (__page_size))
+#define __align_down(__value, __alignment) ((__value) - ((__value) % (__alignment)))
+#define __align_down_page(__value) __align_down((__value), (__page_size))
 
 #define __cxp
 //#define __cxp constexpr
